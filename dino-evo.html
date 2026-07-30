@@ -1,0 +1,1020 @@
+<!-- dino-evo · neuroevolution dino runner, single file, no deps.
+     R = recording mode, ? = key list, 1-4 = reveal stages. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dino-Evo — This Game Is Too Dumb For AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f1e; --panel:#121a2e; --panel-2:#1a2340; --line:#232e50; --line-2:#33406e;
+    --ink:#e9eef9; --muted:#8593b6;
+    --champ:#a78bfa;  /* veteran */
+    --teal:#3fe0c5;   /* rookie */
+    --warn:#ffc857;   /* goal, replay, you */
+    --fake:#ff3d8b;
+    --body:#10162a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Space Grotesk",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 18px 60px}
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+  .logo{font-weight:700;font-size:26px;letter-spacing:-.5px;line-height:1}
+  .logo b{color:var(--champ)}
+
+  .stage{position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:10px}
+  .stage.hide{display:none}
+  .stagehide{display:none!important}
+  canvas{display:block;width:100%;height:auto}
+  #net{display:none}   /* offscreen, blitted into the game canvas */
+  .hud{position:absolute;top:12px;left:14px;display:flex;gap:8px;flex-wrap:wrap;
+    font-family:"JetBrains Mono",monospace;font-size:12px}
+  .chip{background:#0a1122cc;border:1px solid var(--line);padding:5px 10px;border-radius:8px;letter-spacing:.4px}
+  .chip.gen{color:var(--teal)} .chip.rec{color:var(--champ)} .chip.goal{color:var(--warn)}
+  .chip.alive{color:var(--ink)}
+  .tagline{position:absolute;bottom:12px;left:14px;font-family:"JetBrains Mono",monospace;font-size:12px;
+    padding:5px 10px;border-radius:8px;background:#0a1122cc;border:1px solid var(--line);letter-spacing:1px}
+  .tagline.vet{color:var(--champ);border-color:#5a2a44}
+  .tagline.rook{color:var(--teal);border-color:#1f5a52}
+  .flash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-family:"JetBrains Mono",monospace;font-size:26px;letter-spacing:4px;color:var(--warn);
+    background:#0a1122aa;opacity:0;transition:opacity .2s;pointer-events:none}
+  .flash.on{opacity:1}
+
+
+  .lower{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;margin-top:12px}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .box h3{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--muted);font-family:"JetBrains Mono",monospace;text-transform:uppercase;letter-spacing:1.2px}
+  .controls{display:flex;flex-direction:column}
+
+  .field{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    min-height:44px;padding:4px 0;border-bottom:1px solid #1b2440}
+  .field:last-child{border-bottom:0}
+  .field .lbl{font-size:12.5px;color:var(--ink);font-weight:500;line-height:1.3}
+  .field .ctl{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+  .val{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);
+    min-width:40px;text-align:right;font-variant-numeric:tabular-nums}
+
+  .segs{display:inline-flex;background:#0c1223;border:1px solid var(--line);border-radius:9px;padding:3px}
+  .seg{cursor:pointer;text-align:center;font-family:"JetBrains Mono",monospace;font-size:11.5px;
+    padding:5px 11px;border-radius:6px;background:transparent;color:var(--muted);transition:.12s;user-select:none}
+  .seg:hover{color:var(--ink)}
+  .seg.on{background:var(--panel-2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-2)}
+
+  input[type=range]{-webkit-appearance:none;appearance:none;width:150px;height:20px;
+    background:transparent;cursor:pointer;margin:0}
+  input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:99px;background:var(--line-2)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-5px;
+    border-radius:50%;background:var(--ink);border:0;transition:background .12s}
+  input[type=range]::-moz-range-track{height:4px;border-radius:99px;background:var(--line-2)}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:var(--ink)}
+  input[type=range]:hover::-webkit-slider-thumb{background:var(--teal)}
+  input[type=range]:hover::-moz-range-thumb{background:var(--teal)}
+
+  input[type=text],input[type=number]{background:#0c1223;border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:7px 10px;font-family:"JetBrains Mono",monospace;font-size:12px;width:132px}
+  input[type=text]:hover,input[type=number]:hover{border-color:var(--line-2)}
+  input:focus-visible,.seg:focus-visible,.btn:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  .mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+
+  .btn{cursor:pointer;font-family:"JetBrains Mono",monospace;font-size:11.5px;letter-spacing:.2px;
+    padding:8px 11px;border-radius:8px;border:1px solid var(--line);background:#0c1223;color:var(--ink);
+    transition:.12s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .btn:hover:not(:disabled){border-color:var(--line-2);background:var(--panel-2)}
+  .btn.primary{background:var(--champ);border-color:var(--champ);color:#150a2f;font-weight:600}
+  .btn.primary:hover:not(:disabled){filter:brightness(1.12);background:var(--champ)}
+  .btn.hot{border-color:#2c6058;color:var(--teal)}
+  .btn.hot:hover:not(:disabled){border-color:var(--teal);background:#0f2a28}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;padding-top:14px}
+  .note{color:var(--muted);font-size:12px;line-height:1.55;padding-top:12px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .dot.ring{background:transparent;border:1.5px dashed var(--fake)}
+  .sep{height:1px;background:var(--line);margin:12px 0 0}
+  @media(max-width:720px){.lower{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* record mode (R): collapse everything to one stage that fills the frame.
+     The game strip is 3:1 and the frame is 16:9, so instead of black bars the
+     body background continues the game's own sky and ground — hard split at 50%,
+     which lands underneath the opaque canvas. Keep the two colours below in sync
+     with THEME.sky[0] / THEME.ground. */
+  body.rec{overflow:hidden}
+  body.rec .wrap{max-width:none;width:100vw;height:100vh;margin:0;padding:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
+  body.rec header,body.rec .lower{display:none!important}
+  body.rec #box-graph{display:none}                       /* game-only by default */
+
+  /* game-only, single population: cinematic full-bleed fill */
+  body.rec:not(.splitmode):not(.graphon){
+    background:linear-gradient(to bottom,#241f4d 0,#241f4d 50%,#3d3556 50%,#3d3556 100%)}
+  body.rec:not(.splitmode):not(.graphon) .stage{width:100vw;margin:0;
+    border:0;border-radius:0;background:transparent}
+
+  /* split view, or when the graph is called into frame: centered dashboard cards */
+  body.rec.splitmode .stage,
+  body.rec.graphon .stage{width:min(92vw,1500px);margin:0 0 12px}
+  body.rec.graphon #box-graph{display:block;width:min(92vw,1500px);margin:0!important}
+
+  body.nohud .hud{display:none}                           /* H hides the HUD chips */
+
+  #rec-hint{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+    font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.3px;color:var(--ink);
+    background:#0a1122ee;border:1px solid var(--line-2);padding:9px 14px;border-radius:10px;
+    opacity:0;transition:opacity .4s;pointer-events:none;z-index:50;white-space:nowrap;
+    max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+  #rec-hint.show{opacity:1}
+  #rec-hint b{color:var(--teal);font-weight:600}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="logo">DINO·<b>EVO</b></div>
+  </header>
+
+  <div class="stage" id="stage-a">
+    <canvas id="game-a" width="920" height="300"></canvas>
+    <div class="hud">
+      <span class="chip gen" id="a-gen">GEN 1</span>
+      <span class="chip alive" id="a-pop">ALIVE 200/200</span>
+      <span class="chip" id="a-score">SCORE 0</span>
+      <span class="chip rec" id="a-rec">RECORD 0</span>
+      <span class="chip goal" id="a-goal">GOAL 100</span>
+    </div>
+    <div class="tagline vet hide" id="a-label">VETERAN</div>
+    <div class="flash" id="a-flash">GOAL REACHED</div>
+  </div>
+
+  <div class="stage hide" id="stage-b">
+    <canvas id="game-b" width="920" height="230"></canvas>
+    <div class="hud">
+      <span class="chip gen" id="b-gen">GEN 1</span>
+      <span class="chip alive" id="b-pop">ALIVE 200/200</span>
+      <span class="chip" id="b-score">SCORE 0</span>
+      <span class="chip rec" id="b-rec">RECORD 0</span>
+      <span class="chip goal" id="b-goal">GOAL 100</span>
+    </div>
+    <div class="tagline rook" id="b-label">ROOKIE</div>
+    <div class="flash" id="b-flash">GOAL REACHED</div>
+  </div>
+
+  <div class="box" id="box-graph" style="margin-top:12px">
+    <h3>Record per generation</h3>
+    <canvas id="graph" width="900" height="200" style="width:100%;cursor:crosshair"></canvas>
+    <canvas id="net" width="260" height="140"></canvas>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--champ)"></span>main / veteran</span>
+      <span id="lg-rookie"><span class="dot" style="background:var(--teal)"></span>rookie</span>
+      <span id="lg-fake"><span class="dot" style="background:var(--warn)"></span>fake cactus switched on</span>
+      <span id="lg-fake2"><span class="dot ring"></span>fake cactus (not solid)</span>
+    </div>
+  </div>
+
+  <div class="lower">
+    <div class="box controls">
+      <h3>Controls</h3>
+      <div class="field">
+        <div class="lbl">Simulation speed</div>
+        <div class="ctl">
+          <div class="segs" id="speed">
+            <div class="seg on" data-s="1">1×</div><div class="seg" data-s="3">3×</div>
+            <div class="seg" data-s="8">8×</div><div class="seg" data-s="40">turbo</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <div class="lbl">Mutation rate</div>
+        <div class="ctl"><input type="range" id="mr" min="1" max="40" value="3">
+          <span class="val" id="mr-val">3%</span></div>
+      </div>
+      <div class="field">
+        <div class="lbl">Game speed</div>
+        <div class="ctl"><input type="range" id="gs" min="40" max="120" value="70">
+          <span class="val" id="gs-val">7.0</span></div>
+      </div>
+      <div class="field">
+        <div class="lbl">Seed</div>
+        <div class="ctl"><input type="text" id="seed" value="dumb-game-3"></div>
+      </div>
+      <div class="btnrow">
+        <button class="btn primary" id="pause">Pause</button>
+        <button class="btn" id="reset">Restart</button>
+        <button class="btn" id="play">Play it yourself</button>
+      </div>
+    </div>
+
+    <div class="box controls" id="box-fake">
+      <h3>The dumb obstacle</h3>
+      <div class="field">
+        <div class="lbl">Fake cactus</div>
+        <div class="ctl">
+          <div class="segs" id="fake">
+            <div class="seg on" data-f="0">off</div><div class="seg" data-f="1">on</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <div class="lbl">How often</div>
+        <div class="ctl"><input type="range" id="fp" min="5" max="80" value="35">
+          <span class="val" id="fp-val">35%</span></div>
+      </div>
+      <div class="field">
+        <div class="lbl">Looks real</div>
+        <div class="ctl"><input type="range" id="fs" min="0" max="100" value="35">
+          <span class="val" id="fs-val">35%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lower">
+    <div class="box controls" id="box-lab">
+      <h3>Lab · veteran vs rookie</h3>
+      <div class="btnrow" style="padding-top:0">
+        <button class="btn primary" id="save">Save champion</button>
+        <button class="btn" id="dl">Download .json</button>
+        <button class="btn" id="ld">Load .json</button>
+        <button class="btn hot" id="runchamp" disabled>Run champion</button>
+        <input type="file" id="ldfile" accept="application/json" hidden>
+      </div>
+      <div class="note mono" id="slot">Saved champion: none</div>
+      <div class="sep"></div>
+      <div class="btnrow">
+        <button class="btn hot" id="cont" disabled>Continue from champion</button>
+        <button class="btn hot" id="vs" disabled>Veteran vs rookie</button>
+        <button class="btn" id="single">Back to single</button>
+      </div>
+    </div>
+
+    <div class="box controls" id="box-replay">
+      <h3>Replay &amp; brain evolution</h3>
+      <div class="field">
+        <div class="lbl">Replay champion of generation</div>
+        <div class="ctl"><input type="number" id="rgen" min="1" value="1" style="width:76px"></div>
+      </div>
+      <div class="btnrow">
+        <button class="btn primary" id="replay">Replay</button>
+        <button class="btn" id="stopreplay" disabled>Stop</button>
+      </div>
+      <div class="sep"></div>
+      <div class="field">
+        <div class="lbl">Brain history</div>
+        <div class="ctl"><input type="range" id="tl" min="1" max="1" value="1">
+          <span class="val" id="tl-val">gen 1</span></div>
+      </div>
+      <div class="btnrow" style="padding-top:0">
+        <button class="btn" id="playevo">Play brain evolution</button>
+        <button class="btn" id="livebrain">Back to live</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="rec-hint"><b>R</b> record · <b>G</b> graph · <b>H</b> hud · <b>P</b> pause · <b>S</b> speed · <b>V</b> vs rookie · <b>1&ndash;4</b> stages · <b>?</b> keys</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+// seeded rng. same seed -> same course, same evolution, every time.
+function hash32(str){let h=2166136261>>>0;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gauss(rnd){let u=0,v=0;while(u===0)u=rnd();while(v===0)v=rnd();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+let SEED='dumb-game-3';
+const brainRng=tag=>mulberry32(hash32(SEED+':brains:'+tag));
+
+// 4 senses -> hidden -> jump or don't
+const N_IN=4, N_HID=6, N_OUT=2;
+const W_TOTAL=N_IN*N_HID+N_HID+N_HID*N_OUT+N_OUT;
+const JUMP=0, NOTHING=1;
+
+class Brain{
+  constructor(weights,rnd){
+    this.w = weights ? weights.slice() : Array.from({length:W_TOTAL},()=>gauss(rnd));
+    this.hid=new Array(N_HID).fill(0);
+    this.out=new Array(N_OUT).fill(0);
+  }
+  forward(inp){
+    let k=0;
+    for(let j=0;j<N_HID;j++){let s=0;for(let i=0;i<N_IN;i++)s+=inp[i]*this.w[k++];s+=this.w[k++];this.hid[j]=Math.tanh(s);}
+    const raw=new Array(N_OUT);
+    for(let o=0;o<N_OUT;o++){let s=0;for(let j=0;j<N_HID;j++)s+=this.hid[j]*this.w[k++];s+=this.w[k++];raw[o]=s;}
+    const m=Math.max(...raw); let sum=0;
+    for(let o=0;o<N_OUT;o++){raw[o]=Math.exp(raw[o]-m);sum+=raw[o];}
+    for(let o=0;o<N_OUT;o++)this.out[o]=raw[o]/sum;
+    // loudest output wins
+    let best=0;for(let o=1;o<N_OUT;o++)if(this.out[o]>this.out[best])best=o;
+    return best;
+  }
+  clone(){return new Brain(this.w);}
+  mutate(rate,rnd){for(let i=0;i<this.w.length;i++)if(rnd()<rate)this.w[i]+=gauss(rnd)*0.5;return this;}
+}
+const wIn =(i,j)=>j*(N_IN+1)+i;                 // input i -> hidden j
+const wOut=(j,o)=>N_HID*(N_IN+1)+o*(N_HID+1)+j; // hidden j -> output o
+
+const GW=920, GROUND=250;
+const DINO_X=110, DINO_W=26, STAND_H=42;
+const GRAV=1.10, JUMP_V=-12;
+const GOAL=100;
+const FRAME_CAP=8000;      // nobody died in 8000 frames? call the generation and move on
+
+const cfg={ pop:200, mutation:0.03, gameSpeed:7.0, fakeOn:false, fakeProb:0.35, fakeReal:0.35 };
+
+// Two real sizes with the fake one sitting between them — that's the trick. A brain
+// that fires on "cactus-sized thing ahead" fires on the fake one too, and the way out
+// is a rule with a hole in the middle: jump at 34, jump at 52, do nothing at 44.
+// fakeReal narrows the fake's width onto the line the two real ones sit on. Past ~60%
+// there is no handle left and nothing solves it, rookie included.
+const REAL_SMALL={w:20,h:34}, REAL_BIG={w:30,h:52};
+function fakeSize(){ return { w:Math.round(lerp(36,26,cfg.fakeReal)), h:44 }; }
+
+const THEME={sky:['#241f4d','#7d5a86','#e6a074'],orb:'#ffe0a8',hill:'#4a3f66',hill2:'#5a4d7a',
+  ground:'#3d3556',gline:'#57496f'};
+
+function makeDino(brain){
+  return {brain,y:GROUND-STAND_H,vy:0,h:STAND_H,alive:true,fitness:0,score:0};
+}
+// everything the dinosaur knows about the world
+function sense(o,speed){
+  return [ o ? Math.min(1,(o.x-DINO_X)/GW) : 1,   // distance to the obstacle
+           o ? o.h/70 : 0,                        // its height
+           o ? o.w/50 : 0,                        // its width
+           speed/13 ];                            // how fast the game is going
+}
+
+// one population plus its own world. two of these side by side = the split screen.
+class Lab{
+  constructor(name,label,color,seedBrains){
+    this.name=name; this.label=label; this.color=color;
+    this.baseGen=1; this.run=0;
+    this.brng=brainRng(name);
+    this.pop=seedBrains ? seedBrains.map(b=>makeDino(b))
+                        : Array.from({length:cfg.pop},()=>makeDino(new Brain(null,this.brng)));
+    this.record=0; this.history=[]; this.brainLog=[]; this.events=[]; this.goalHit=false; this.flash=0;
+    this.newRun();
+  }
+  get gen(){return this.baseGen+this.run;}
+  newRun(){
+    this.rng=mulberry32(hash32(SEED+':course:'+this.run));
+    this.obstacles=[]; this.frame=0; this.dist=0; this.gap=340; this.speed=cfg.gameSpeed;
+    this.done=false;
+    for(const d of this.pop){d.y=GROUND-STAND_H;d.vy=0;d.h=STAND_H;d.alive=true;d.fitness=0;d.score=0;}
+  }
+  spawn(){
+    const fake = cfg.fakeOn && this.rng()<cfg.fakeProb;
+    if(fake){
+      const s=fakeSize();
+      this.obstacles.push({fake:true,x:GW+this.rng()*30,y:GROUND-s.h,w:s.w,h:s.h,arms:true,passed:false});
+    }else{
+      const big=this.rng()<0.4, s=big?REAL_BIG:REAL_SMALL;
+      this.obstacles.push({fake:false,x:GW+this.rng()*30,y:GROUND-s.h,w:s.w,h:s.h,arms:this.rng()<0.6,passed:false});
+    }
+    this.gap = 250 + this.speed*14 + this.rng()*200;
+  }
+  next(){ // first obstacle the dinosaur has not passed yet
+    let nx=1e9,no=null;
+    for(const o of this.obstacles) if(o.x+o.w>=DINO_X && o.x<nx){nx=o.x;no=o;}
+    return no;
+  }
+  step(){
+    if(this.done) return;
+    this.frame++; this.dist+=this.speed;
+    for(const o of this.obstacles) o.x-=this.speed;
+    for(const o of this.obstacles){
+      if(!o.passed && o.x+o.w<DINO_X){o.passed=true;for(const d of this.pop) if(d.alive)d.score++;}
+    }
+    while(this.obstacles.length && this.obstacles[0].x+this.obstacles[0].w<-20) this.obstacles.shift();
+    const last=this.obstacles[this.obstacles.length-1];
+    if(!last || (GW-last.x)>=this.gap) this.spawn();
+
+    const no=this.next();
+    const inp=sense(no,this.speed);
+    let alive=0, top=0;
+    for(const d of this.pop){
+      if(!d.alive) continue;
+      alive++; d.fitness++;
+      const grounded = d.y>=GROUND-d.h-0.5;
+      const act = d.brain.forward(inp);
+      if(act===JUMP && grounded) d.vy=JUMP_V;
+      d.vy+=GRAV; d.y+=d.vy;
+      if(d.y>GROUND-d.h){d.y=GROUND-d.h;d.vy=0;}
+      const airborne = (d.y+d.h) < GROUND-2;
+      for(const o of this.obstacles){
+        const xHit = DINO_X<o.x+o.w && DINO_X+DINO_W>o.x;
+        if(!xHit) continue;
+        if(o.fake){ if(airborne){d.alive=false;break;} }           // jumped over nothing -> dead
+        else if(d.y+d.h>o.y && d.y<o.y+o.h){d.alive=false;break;}  // real cactus -> dead
+      }
+      if(d.alive && d.score>top) top=d.score;
+    }
+    this.top=top;
+    if(top>=GOAL && !this.goalHit){this.goalHit=true;this.flash=90;}
+    if(alive===0 || top>=GOAL || this.frame>FRAME_CAP) this.done=true;
+    this.alive=alive;
+    return alive;
+  }
+  // keep the single best, make cfg.pop mutated copies of it. that's the algorithm.
+  evolve(){
+    let best=this.pop[0];
+    for(const d of this.pop) if(d.fitness>best.fitness) best=d;
+    this.record=Math.max(this.record,best.score);
+    this.history.push(best.score);
+    this.brainLog.push({gen:this.gen,run:this.run,score:best.score,w:best.brain.w.slice()});
+    const parent=best.brain;
+    const kids=[];
+    for(let i=0;i<cfg.pop;i++) kids.push(makeDino(parent.clone().mutate(cfg.mutation,this.brng)));
+    this.pop=kids; this.run++; this.goalHit=false; this.newRun();
+  }
+  champion(){ // best one still alive — the one the camera follows
+    let c=null,cs=-1;
+    for(const d of this.pop) if(d.alive&&d.score>=cs){cs=d.score;c=d;}
+    return c||this.pop[0];
+  }
+}
+
+const cvA=$('game-a'), cvB=$('game-b');
+const ctxA=cvA.getContext('2d'), ctxB=cvB.getContext('2d');
+const grc=$('graph').getContext('2d');
+const nc=$('net').getContext('2d');
+
+// Everything is drawn in logical coords (920 wide), but the backing store is RS×
+// bigger so nothing goes soft when OBS scales the page to 1440p. Display size is
+// unchanged. RS=2 if the GPU starts complaining.
+const RS=3;
+let LHA=300;                              // logical height of game-a (300 / 230 split)
+const LHB=230;                            // logical height of game-b
+function fitCanvas(cv,lw,lh){ cv.width=Math.round(lw*RS); cv.height=Math.round(lh*RS); }
+// these two never resize, so their transform can be set once and left alone
+fitCanvas($('graph'),900,200); grc.setTransform(RS,0,0,RS,0,0);
+fitCanvas($('net'),260,140);   nc.setTransform(RS,0,0,RS,0,0);
+fitCanvas(cvB,GW,LHB);         // game-a is sized in setMode; game-b never resizes
+
+let labA, labB=null, replayLab=null, playLab=null;
+const keys={};
+let running=true, speedMult=1, frameNo=0, mode='single';
+let savedChamp=null;                 // {gen, score, w[]}
+let brainView=null;                   // {w, gen} when scrubbing history
+let evoPlaying=false, selNode=null;
+
+function boot(){
+  SEED=$('seed').value.trim()||'dumb-game-01';
+  labA=new Lab('a','MAIN','--champ',null);
+  labB=null; replayLab=null; brainView=null; evoPlaying=false; selNode=null;
+  mode='single'; setMode();
+}
+
+function setMode(){
+  const split = (mode==='split');
+  $('stage-b').classList.toggle('hide',!split);
+  $('a-label').classList.toggle('hide',!split);
+  LHA = split?230:300;
+  fitCanvas(cvA,GW,LHA);                                // hi-res backing, logical stays LHA
+  $('single').disabled = (mode==='single');
+  document.body.classList.toggle('splitmode',split);   // full-bleed fill is single-only
+}
+const yOff = ()=> (LHA===300?0:70);
+
+function drawHills(c,color,scale,base,shift){
+  c.fillStyle=color;c.beginPath();c.moveTo(0,GROUND);
+  for(let x=0;x<=GW;x+=20){
+    const y=GROUND-base-Math.sin((x+shift)*0.008)*base*scale-Math.sin((x+shift)*0.021)*base*scale*0.5;
+    c.lineTo(x,y);
+  }
+  c.lineTo(GW,GROUND);c.closePath();c.fill();
+}
+function drawBackground(c,lab){
+  const t=THEME;
+  const g=c.createLinearGradient(0,0,0,GROUND);
+  g.addColorStop(0,t.sky[0]);g.addColorStop(0.55,t.sky[1]);g.addColorStop(1,t.sky[2]);
+  c.fillStyle=g;c.fillRect(0,0,GW,GROUND);
+  c.save();c.shadowColor=t.orb;c.shadowBlur=26;c.fillStyle=t.orb;
+  c.beginPath();c.arc(760,70,26,0,7);c.fill();c.restore();
+  drawHills(c,t.hill2,0.22,70,lab.dist*0.12);
+  drawHills(c,t.hill,0.5,110,lab.dist*0.28);
+  c.fillStyle=t.ground;c.fillRect(0,GROUND,GW,80);
+  c.strokeStyle=t.gline;c.lineWidth=2;c.beginPath();c.moveTo(0,GROUND+1);c.lineTo(GW,GROUND+1);c.stroke();
+  c.fillStyle=t.gline;
+  const off=lab.dist%40;
+  for(let x=-off;x<GW;x+=40){c.fillRect(x,GROUND+14,10,3);c.fillRect(x+20,GROUND+26,6,3);}
+}
+// Real and fake share the same silhouette — only the paint differs, because the
+// paint is for the viewer and the dinosaur is blind to colour.
+function cactusParts(o){
+  const trunkW=Math.round(o.w*0.42), tx=o.x+(o.w-trunkW)/2;
+  const parts=[[tx,o.y,trunkW,o.h]];
+  if(o.arms){
+    const ay=o.y+o.h*0.35, ah=o.h*0.4, aw=Math.round(o.w*0.24);
+    parts.push([o.x,ay+6,aw,ah*0.6],[o.x,ay,aw,6],
+               [o.x+o.w-aw,ay+2,aw,ah*0.5],[o.x+o.w-aw,ay-4,aw,6]);
+  }
+  return {parts,tx,trunkW};
+}
+function drawCactus(c,o){
+  const {parts,tx,trunkW}=cactusParts(o);
+  c.save();
+  if(o.fake){
+    // hollow, dashed, magenta: reads as "not solid" in a single frame
+    const fk=css('--fake');
+    c.globalAlpha=0.16;c.fillStyle=fk;
+    for(const p of parts) c.fillRect(p[0],p[1],p[2],p[3]);
+    c.globalAlpha=1;c.strokeStyle=fk;c.lineWidth=1.5;
+    c.setLineDash([4,3]);c.lineDashOffset=-frameNo*0.3;
+    c.shadowColor=fk;c.shadowBlur=8;
+    for(const p of parts) c.strokeRect(p[0]+0.75,p[1]+0.75,p[2]-1.5,p[3]-1.5);
+    c.setLineDash([]);c.shadowBlur=0;
+    c.fillStyle=fk;c.font='700 9px "JetBrains Mono",monospace';c.textAlign='center';
+    c.fillText('FAKE',o.x+o.w/2,o.y-8);
+  }else{
+    c.fillStyle='#2f7d43';
+    for(let i=1;i<parts.length;i++) c.fillRect(parts[i][0],parts[i][1],parts[i][2],parts[i][3]);
+    c.fillStyle='#3c9d55';c.fillRect(tx,o.y,trunkW,o.h);
+    c.fillStyle='#54ad6b';c.fillRect(tx+2,o.y+3,2,o.h-6);
+    c.fillStyle='#256237';c.fillRect(tx+trunkW-2,o.y+3,2,o.h-6);
+  }
+  c.restore();
+}
+
+// Dark silhouette with a coloured rim that says which population it belongs to.
+// The rim is just every part inflated by 2px with the body painted back on top.
+function dinoParts(d,moving){
+  const x=DINO_X,y=d.y;
+  const p=[
+    [x-9,y+13,12,7],[x-5,y+19,8,6],        // tail
+    [x+2,y+16,18,15],                       // body
+    [x+11,y+11,9,8],                        // neck
+    [x+13,y,14,12],[x+27,y+5,6,5],          // head + snout
+    [x+15,y+21,6,3]];                       // arm
+  const ph=(frameNo%20<10);
+  if(!moving)      p.push([x+1,y+31,5,11],[x+13,y+31,5,11]);
+  else if(ph)      p.push([x+1,y+31,5,11],[x+13,y+33,5,9]);
+  else             p.push([x+1,y+33,5,9], [x+13,y+31,5,11]);
+  return p;
+}
+function drawDino(c,d,accent){
+  const parts=dinoParts(d,Math.abs(d.vy)<0.5);
+  c.save();
+  c.fillStyle=accent;c.shadowColor=accent;c.shadowBlur=10;
+  for(const p of parts) c.fillRect(p[0]-2,p[1]-2,p[2]+4,p[3]+4);
+  c.shadowBlur=0;c.fillStyle=css('--body');
+  for(const p of parts) c.fillRect(p[0],p[1],p[2],p[3]);
+  c.fillStyle=accent;
+  c.fillRect(DINO_X+21,d.y+3,3,3);   // eye
+  c.restore();
+}
+function drawGhost(c,d,accent){
+  c.save();c.globalAlpha=0.12;c.fillStyle=accent;
+  for(const p of dinoParts(d,Math.abs(d.vy)<0.5)) c.fillRect(p[0],p[1],p[2],p[3]);
+  c.restore();
+}
+function drawLab(c,lab,color,lh){
+  const o=yOff();
+  c.setTransform(RS,0,0,RS,0,0);   // logical coords, hi-res backing
+  c.clearRect(0,0,GW,lh);
+  c.save();c.translate(0,-o);
+  drawBackground(c,lab);
+  for(const ob of lab.obstacles) drawCactus(c,ob);
+  const champ=lab.champion(), acc=css(color);
+  for(const d of lab.pop) if(d.alive&&d!==champ) drawGhost(c,d,acc);
+  if(champ&&champ.alive) drawDino(c,champ,acc);
+  c.restore();
+  return champ;
+}
+
+const GP={l:34,r:12,t:14,b:20}, GW2=900, GH2=200;
+let hoverGen=null;
+function drawGraph(){
+  grc.clearRect(0,0,GW2,GH2);
+  const series=[];
+  if(labA) series.push({h:labA.history,c:css('--champ'),n:labB?'veteran':'main'});
+  if(labB) series.push({h:labB.history,c:css('--teal'),n:'rookie'});
+  const all=series.flatMap(s=>s.h);
+  const max=Math.max(...all,GOAL);
+  const n=Math.max(2,...series.map(s=>s.h.length));
+  const X=i=>GP.l+i/(n-1)*(GW2-GP.l-GP.r);
+  const Y=v=>(GH2-GP.b)-v/max*(GH2-GP.b-GP.t);
+
+  // gridlines, with the numbers on them
+  grc.font='9px "JetBrains Mono",monospace';grc.textAlign='right';
+  for(const v of [...new Set([0,Math.round(max/2),max])]){
+    const y=Y(v);
+    grc.strokeStyle='#1b2440';grc.lineWidth=1;
+    grc.beginPath();grc.moveTo(GP.l,y+.5);grc.lineTo(GW2-GP.r,y+.5);grc.stroke();
+    grc.fillStyle=css('--muted');grc.fillText(v,GP.l-7,y+3);
+  }
+  grc.strokeStyle=css('--warn');grc.globalAlpha=.45;grc.setLineDash([4,4]);
+  grc.beginPath();grc.moveTo(GP.l,Y(GOAL)+.5);grc.lineTo(GW2-GP.r,Y(GOAL)+.5);grc.stroke();
+  grc.setLineDash([]);grc.globalAlpha=1;
+  grc.fillStyle=css('--muted');grc.textAlign='left';
+  grc.fillText('gen 1',GP.l,GH2-6);
+  grc.textAlign='right';grc.fillText('gen '+n,GW2-GP.r,GH2-6);
+  // where the fake cactus came in
+  for(const e of (labA?labA.events:[])){
+    const x=X(Math.min(e.run+(labA.histOffset||0),n-1));
+    grc.strokeStyle=css('--warn');grc.globalAlpha=.45;grc.setLineDash([2,3]);
+    grc.beginPath();grc.moveTo(x,GP.t);grc.lineTo(x,GH2-GP.b);grc.stroke();
+    grc.setLineDash([]);grc.globalAlpha=1;
+    grc.fillStyle=css('--warn');grc.textAlign='left';grc.font='8px "JetBrains Mono",monospace';
+    grc.fillText('FAKE ON',x+3,GP.t+8);
+  }
+  // curves, each with its current value at the head
+  for(const sr of series){
+    if(sr.h.length<2) continue;
+    grc.beginPath();grc.strokeStyle=sr.c;grc.lineWidth=2;
+    sr.h.forEach((v,i)=>{const x=X(i),y=Y(v);i?grc.lineTo(x,y):grc.moveTo(x,y);});
+    grc.stroke();
+    // one dot per generation, but only while they're far enough apart to read
+    const step=(GW2-GP.l-GP.r)/(n-1);
+    if(step>=4){
+      const r=step>=10?2.6:2;
+      grc.fillStyle=sr.c;
+      sr.h.forEach((v,i)=>{grc.beginPath();grc.arc(X(i),Y(v),r,0,7);grc.fill();});
+    }
+    const i=sr.h.length-1,x=X(i),y=Y(sr.h[i]);
+    grc.fillStyle=sr.c;grc.beginPath();grc.arc(x,y,3.5,0,7);grc.fill();
+    grc.font='700 11px "JetBrains Mono",monospace';
+    const right=x>GW2-70;grc.textAlign=right?'right':'left';
+    grc.fillText(sr.h[i],x+(right?-8:8),y-7);
+  }
+  if(hoverGen!=null){
+    const i=Math.max(0,Math.min(n-1,hoverGen)),x=X(i);
+    grc.strokeStyle=css('--muted');grc.globalAlpha=.45;grc.setLineDash([3,3]);
+    grc.beginPath();grc.moveTo(x,GP.t);grc.lineTo(x,GH2-GP.b);grc.stroke();
+    grc.setLineDash([]);grc.globalAlpha=1;
+    const rows=series.filter(sr=>sr.h[i]!=null).map(sr=>({t:sr.n+'  '+sr.h[i],c:sr.c}));
+    for(const sr of series) if(sr.h[i]!=null){
+      grc.fillStyle=sr.c;grc.beginPath();grc.arc(x,Y(sr.h[i]),3,0,7);grc.fill();
+    }
+    if(rows.length){
+      grc.font='9px "JetBrains Mono",monospace';
+      const lines=['GEN '+(i+1),...rows.map(r=>r.t)];
+      const bw=Math.max(...lines.map(t=>grc.measureText(t).width))+16;
+      const bh=13+lines.length*12;
+      let bx=x+10; if(bx+bw>GW2-4) bx=x-10-bw;
+      const by=GP.t+2;
+      grc.fillStyle='#0a0f1eee';grc.strokeStyle=css('--line');grc.lineWidth=1;
+      grc.beginPath();grc.roundRect(bx,by,bw,bh,6);grc.fill();grc.stroke();
+      grc.textAlign='left';grc.fillStyle=css('--muted');
+      grc.fillText(lines[0],bx+8,by+14);
+      rows.forEach((r,k)=>{grc.fillStyle=r.c;grc.fillText(r.t,bx+8,by+26+k*12);});
+    }
+  }
+}
+$('graph').addEventListener('mousemove',e=>{
+  const r=$('graph').getBoundingClientRect(), x=(e.clientX-r.left)*(GW2/r.width);
+  const n=Math.max(2,labA?labA.history.length:2,labB?labB.history.length:0);
+  hoverGen=(x<GP.l-6||x>GW2-GP.r+6)?null:Math.round((x-GP.l)/(GW2-GP.l-GP.r)*(n-1));
+});
+$('graph').addEventListener('mouseleave',()=>{hoverGen=null;});
+
+function mix(c1,c2,t){const p=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  const a=p(c1),b=p(c2);return `rgb(${a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(',')})`;}
+const IN_LABELS=['DIST','HEIGHT','WIDTH','SPEED'], OUT_LABELS=['JUMP','NOTHING'];
+const NW=260, NH=140;
+let netNodes=[];
+function drawNet(champ){
+  nc.clearRect(0,0,NW,NH);
+  let w,hid,out,genTxt=null;
+  if(brainView){ w=brainView.w; hid=new Array(N_HID).fill(0); out=new Array(N_OUT).fill(0); genTxt='GEN '+brainView.gen; }
+  else if(champ){ w=champ.brain.w; hid=champ.brain.hid; out=champ.brain.out; }
+  else return false;
+  const inAct = brainView?new Array(N_IN).fill(0):(champ._inp||new Array(N_IN).fill(0));
+  const cols=[{n:N_IN,act:inAct,x:46},{n:N_HID,act:hid,x:126},{n:N_OUT,act:out,x:200}];
+  const ys=c=>{const a=[],gap=112/(c.n+1);for(let i=0;i<c.n;i++)a.push(12+gap*(i+1));return a;};
+  const P=cols.map(c=>({...c,ys:ys(c)}));
+  netNodes=[];P.forEach((c,ci)=>c.ys.forEach((y,i)=>netNodes.push({ci,i,x:c.x,y})));
+  const isSel=(ci,i)=>selNode&&selNode.ci===ci&&selNode.i===i;
+  const edge=(A,B,ci,idx)=>{
+    for(let i=0;i<A.n;i++)for(let j=0;j<B.n;j++){
+      const wv=w[idx(i,j)];
+      const hot = isSel(ci,i)||isSel(ci+1,j);
+      const a = hot?0.95:Math.min(.55,Math.abs(wv)*.28);
+      nc.strokeStyle = wv>=0?`rgba(63,224,197,${a})`:`rgba(167,139,250,${a})`;
+      nc.lineWidth = hot?Math.min(5,1+Math.abs(wv)*1.6):Math.min(2,Math.abs(wv));
+      nc.beginPath();nc.moveTo(A.x+7,A.ys[i]);nc.lineTo(B.x-7,B.ys[j]);nc.stroke();
+      if(hot){ // read the weight straight off the wire
+        nc.fillStyle=css('--ink');nc.font='7px JetBrains Mono';nc.textAlign='center';
+        nc.fillText(wv.toFixed(2),(A.x+B.x)/2,(A.ys[i]+B.ys[j])/2-2);
+      }
+    }
+  };
+  edge(P[0],P[1],0,wIn);
+  edge(P[1],P[2],1,wOut);
+  const labels=[IN_LABELS,[],OUT_LABELS];
+  P.forEach((c,ci)=>{for(let i=0;i<c.n;i++){
+    const a=Math.max(0,Math.min(1,c.act[i]??0));
+    nc.beginPath();nc.arc(c.x,c.ys[i],6.5,0,7);nc.fillStyle=mix('#1b2545',css('--teal'),a);nc.fill();
+    nc.strokeStyle=isSel(ci,i)?css('--warn'):css('--line');nc.lineWidth=isSel(ci,i)?2:1;nc.stroke();
+    if(labels[ci][i]){
+      nc.fillStyle=isSel(ci,i)?css('--warn'):css('--muted');
+      nc.font='8px JetBrains Mono';nc.textAlign=ci===2?'left':'right';
+      nc.fillText(labels[ci][i],ci===2?c.x+11:c.x-11,c.ys[i]+3);
+    }
+  }});
+  if(genTxt){nc.fillStyle=css('--warn');nc.font='10px JetBrains Mono';nc.textAlign='left';nc.fillText(genTxt,7,12);}
+  nc.fillStyle=css('--muted');nc.font='7px JetBrains Mono';nc.textAlign='center';nc.fillText('hidden',126,134);
+  return true;
+}
+// The brain panel is blitted into the game canvas so the camera never has to cut away.
+const NET_W=NW, NET_H=NH;
+let netRect=null;
+function blitBrain(c){
+  const X=GW-NET_W-12, Y=12;   // logical, the context is already scaled
+  c.save();
+  c.fillStyle='rgba(10,17,34,0.5)';c.strokeStyle='rgba(51,64,110,0.75)';c.lineWidth=1;
+  c.beginPath();c.roundRect(X+.5,Y+.5,NET_W,NET_H,10);c.fill();c.stroke();
+  c.drawImage($('net'),X,Y,NET_W,NET_H);
+  c.restore();
+  netRect={X,Y};
+}
+cvA.addEventListener('click',e=>{
+  if(!netRect)return;
+  const r=cvA.getBoundingClientRect();
+  const cx=(e.clientX-r.left)*(GW/r.width), cy=(e.clientY-r.top)*(LHA/r.height);  // -> logical
+  const x=cx-netRect.X, y=cy-netRect.Y;
+  if(x<0||x>NW||y<0||y>NH) return;
+  let hit=null;for(const n of netNodes) if((n.x-x)**2+(n.y-y)**2<130) hit=n;
+  selNode = (hit&&selNode&&selNode.ci===hit.ci&&selNode.i===hit.i)?null:hit;
+});
+cvA.style.cursor='pointer';
+
+// same physics, same fake cactus, keyboard instead of a brain
+const humanBrain={ hid:new Array(N_HID).fill(0), out:new Array(N_OUT).fill(0),
+  forward(){ return keys.jump?JUMP:NOTHING; } };
+addEventListener('keydown',e=>{
+  if(!playLab)return;
+  if(e.code==='Space'||e.code==='ArrowUp'){keys.jump=true;e.preventDefault();}
+});
+addEventListener('keyup',e=>{
+  if(e.code==='Space'||e.code==='ArrowUp')keys.jump=false;
+});
+function startPlay(){
+  const l=new Lab('p','YOU','--warn',[humanBrain]);
+  l.baseGen=1; l.evolve=()=>l.newRun();   // no evolution, you just get another go
+  playLab=l; brainView=null;
+  $('play').textContent='Back to the AI';
+  const lb=$('a-label'); lb.textContent='YOU · SPACE = JUMP'; lb.classList.remove('hide');
+}
+function stopPlay(){
+  playLab=null; $('play').textContent='Play it yourself';
+  const lb=$('a-label'); lb.textContent='VETERAN'; lb.classList.toggle('hide',mode!=='split');
+}
+$('play').addEventListener('click',()=>playLab?stopPlay():startPlay());
+
+// Reveal stages, so the twist stays a twist:
+//   1 the dumb game   2 + fake cactus   3 + vs rookie   4 + replay & brain history
+// Keyboard 1-4, or open with #stage=4 to skip the ceremony.
+let stage=1;
+function setStage(n){
+  stage=Math.max(1,Math.min(4,n));
+  const show=(id,at)=>$(id).classList.toggle('stagehide',stage<at);
+  show('box-fake',2); show('lg-fake',2); show('lg-fake2',2);
+  show('box-lab',3); show('lg-rookie',3);
+  show('box-replay',4);
+}
+addEventListener('keydown',e=>{
+  if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;   // typing a seed is not a cue
+  if(e.key>='1'&&e.key<='4') setStage(+e.key);
+});
+
+function advance(lab){
+  for(let s=0;s<speedMult;s++){
+    lab.step();
+    if(lab.done){lab.evolve();break;}
+  }
+}
+function tick(){
+  frameNo++;
+  if(running){
+    if(playLab){ playLab.step(); if(playLab.done) playLab.newRun(); }
+    else if(replayLab){ for(let s=0;s<speedMult;s++){replayLab.step(); if(replayLab.done){replayLab.newRun();break;}} }
+    else { advance(labA); if(labB) advance(labB); }
+  }
+  const shownA = playLab||replayLab||labA;
+  const champ=drawLab(ctxA,shownA,(playLab||replayLab)?'--warn':'--champ',LHA);
+  if(champ) champ._inp=sense(shownA.next(),shownA.speed);
+  let champB=null;
+  if(labB && mode==='split'){ champB=drawLab(ctxB,labB,'--teal',LHB); }
+  drawGraph();
+  const haveBrain = drawNet((brainView||playLab)?null:champ);
+  if(haveBrain && mode!=='split') blitBrain(ctxA); else netRect=null;
+  hud(shownA,'a', playLab?'YOU' : (replayLab?('REPLAY · GEN '+replayLab.gen):null));
+  if(labB) hud(labB,'b');
+  requestAnimationFrame(tick);
+}
+function hud(lab,p,override){
+  $(p+'-gen').textContent = override || ('GEN '+lab.gen);
+  $(p+'-pop').textContent = 'ALIVE '+lab.pop.filter(d=>d.alive).length+'/'+lab.pop.length;
+  $(p+'-score').textContent = 'SCORE '+(lab.top||0);
+  $(p+'-rec').textContent = 'RECORD '+lab.record;
+  $(p+'-goal').textContent = 'GOAL '+GOAL;
+  const f=$(p+'-flash');
+  if(lab.flash>0){lab.flash--;f.classList.add('on');} else f.classList.remove('on');
+}
+
+// ---------------------------------------------------------------- controls
+$('speed').addEventListener('click',e=>{const s=e.target.closest('.seg');if(!s)return;
+  [...$('speed').children].forEach(x=>x.classList.remove('on'));s.classList.add('on');speedMult=+s.dataset.s;});
+$('fake').addEventListener('click',e=>{const s=e.target.closest('.seg');if(!s)return;
+  [...$('fake').children].forEach(x=>x.classList.remove('on'));s.classList.add('on');
+  const on=s.dataset.f==='1';
+  if(on!==cfg.fakeOn && labA) labA.events.push({run:labA.run,on});
+  cfg.fakeOn=on;});
+$('mr').addEventListener('input',e=>{cfg.mutation=e.target.value/100;$('mr-val').textContent=e.target.value+'%';});
+$('fp').addEventListener('input',e=>{cfg.fakeProb=e.target.value/100;$('fp-val').textContent=e.target.value+'%';});
+$('fs').addEventListener('input',e=>{cfg.fakeReal=e.target.value/100;$('fs-val').textContent=e.target.value+'%';});
+$('gs').addEventListener('input',e=>{cfg.gameSpeed=e.target.value/10;$('gs-val').textContent=cfg.gameSpeed.toFixed(1);});
+$('pause').addEventListener('click',e=>{running=!running;e.target.textContent=running?'Pause':'Resume';});
+$('reset').addEventListener('click',()=>{stopPlay();boot();});
+
+// A saved champion carries more than its weights: `hist` is the score curve so far
+// and `log` is every generation's champion. Without those a loaded brain has no past,
+// the graph restarts at zero and the history slider is empty.
+const packLog=l=>l.map(b=>({gen:b.gen,run:b.run,score:b.score,w:b.w.slice()}));
+function slotText(){
+  const n=savedChamp&&savedChamp.log?savedChamp.log.length:0;
+  $('slot').textContent = savedChamp
+    ? `Saved champion: gen ${savedChamp.gen} · score ${savedChamp.score}`+
+      (n?` · history ${n} gen`:' · no history')
+    : 'Saved champion: none';
+  $('vs').disabled=!savedChamp;
+  $('runchamp').disabled=!savedChamp;
+  $('cont').disabled=!savedChamp;
+}
+$('save').addEventListener('click',()=>{
+  const log=labA.brainLog[labA.brainLog.length-1];
+  const src = log || {gen:labA.gen,score:labA.top||0,w:labA.champion().brain.w.slice()};
+  savedChamp={gen:src.gen,score:src.score,w:src.w.slice(),seed:SEED,
+               hist:labA.history.slice(), log:packLog(labA.brainLog)};
+  slotText();
+});
+$('dl').addEventListener('click',()=>{
+  const src=savedChamp||{gen:labA.gen,score:labA.record,w:labA.champion().brain.w.slice(),seed:SEED};
+  const out={gen:src.gen,score:src.score,seed:src.seed||SEED,w:src.w,
+             hist:(src.hist||labA.history).slice(),
+             log:packLog(src.log||labA.brainLog)};
+  const blob=new Blob([JSON.stringify(out,null,1)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`dino-champion-gen${out.gen}.json`;a.click();URL.revokeObjectURL(a.href);
+});
+$('ld').addEventListener('click',()=>$('ldfile').click());
+$('ldfile').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const j=JSON.parse(r.result);
+      if(!Array.isArray(j.w)||j.w.length!==W_TOTAL) throw 0;
+      savedChamp={gen:j.gen||1,score:j.score||0,w:j.w,seed:j.seed||SEED,
+                   hist:Array.isArray(j.hist)?j.hist:[],
+                   log:Array.isArray(j.log)?j.log:[]};
+      slotText();
+      // the course is generated from the seed, so a champion is only itself on its own seed
+      if(j.seed){ SEED=j.seed; $('seed').value=j.seed; }
+    }catch{ $('slot').textContent='That file is not a champion export.'; }
+  };
+  r.readAsText(f);e.target.value='';
+});
+
+// One dinosaur running the saved weights, evolution off. Not the same thing as
+// veteran vs rookie, which mutates 200 copies and keeps going.
+$('runchamp').addEventListener('click',()=>{
+  if(!savedChamp)return;
+  if(savedChamp.seed){ SEED=savedChamp.seed; $('seed').value=SEED; }
+  stopPlay();
+  const l=new Lab('c','CHAMPION','--warn',[new Brain(savedChamp.w)]);
+  l.baseGen=savedChamp.gen; l.evolve=()=>{};
+  replayLab=l; brainView=null; labB=null; mode='single'; setMode();
+  $('stopreplay').disabled=false;
+});
+
+// Section 5 of the script: the veteran meets the fake cactus alone, so this can't be
+// the split screen. Same brainRng('vs') stream and same lab name as the veteran side
+// of vs-rookie, so the run is identical to the one that got measured there.
+$('cont').addEventListener('click',()=>{
+  if(!savedChamp)return;
+  if(savedChamp.seed){ SEED=savedChamp.seed; $('seed').value=SEED; }
+  stopPlay();
+  const vr=brainRng('vs');
+  const vet=Array.from({length:cfg.pop},()=>new Brain(savedChamp.w).mutate(cfg.mutation,vr));
+  labA=new Lab('a','MAIN','--champ',vet);
+  labA.baseGen=savedChamp.gen; labA.record=savedChamp.score;
+  labA.history=(savedChamp.hist||[]).slice();          // the past, so the graph is continuous
+  labA.brainLog=packLog(savedChamp.log||[]);           // the past, so replay and the slider work
+  labA.histOffset=labA.history.length;                  // where "now" sits on the graph
+  labB=null; replayLab=null; brainView=null;
+  mode='single'; setMode();
+});
+
+$('vs').addEventListener('click',()=>{
+  if(!savedChamp)return;
+  const vr=brainRng('vs');
+  const vet=Array.from({length:cfg.pop},()=>new Brain(savedChamp.w).mutate(cfg.mutation,vr));
+  labA=new Lab('a','VETERAN','--champ',vet);
+  labA.baseGen=savedChamp.gen; labA.record=savedChamp.score;
+  labB=new Lab('b','ROOKIE','--teal',null);
+  replayLab=null; brainView=null;
+  mode='split'; setMode();
+});
+$('single').addEventListener('click',()=>{ labB=null; mode='single'; setMode(); });
+
+$('replay').addEventListener('click',()=>{
+  const g=+$('rgen').value;
+  const rec=labA.brainLog.find(b=>b.gen===g);
+  if(!rec){$('slot').textContent=`No champion logged for gen ${g} yet.`;return;}
+  const l=new Lab('r','REPLAY','--warn',[new Brain(rec.w)]);
+  l.baseGen=rec.gen-rec.run; l.run=rec.run; l.newRun();   // same course as that generation ran
+  l.evolve=()=>{};                                        // a replay doesn't evolve
+  replayLab=l; $('stopreplay').disabled=false;
+});
+$('stopreplay').addEventListener('click',()=>{replayLab=null;$('stopreplay').disabled=true;});
+
+function tlSync(){
+  const n=Math.max(labA.brainLog.length,1);
+  $('tl').max=n;
+  if(!brainView) $('tl').value=n;
+}
+setInterval(tlSync,500);
+$('tl').addEventListener('input',e=>{
+  const rec=labA.brainLog[+e.target.value-1];
+  if(!rec)return;
+  brainView={w:rec.w,gen:rec.gen};$('tl-val').textContent='gen '+rec.gen;
+});
+$('playevo').addEventListener('click',()=>{
+  if(evoPlaying||!labA.brainLog.length)return;
+  evoPlaying=true;let i=0;
+  const step=()=>{
+    if(!evoPlaying||i>=labA.brainLog.length){evoPlaying=false;return;}
+    const rec=labA.brainLog[i];
+    brainView={w:rec.w,gen:rec.gen};$('tl').value=i+1;$('tl-val').textContent='gen '+rec.gen;
+    i++;setTimeout(step,60);
+  };
+  step();
+});
+$('livebrain').addEventListener('click',()=>{evoPlaying=false;brainView=null;$('tl-val').textContent='live';});
+
+// --------------------------------------------------------------- record mode
+// Every key below drives a control that already exists, so the simulation behaves
+// the same whether or not the camera is running.
+const recHint=$('rec-hint');
+let hintTimer, hintSticky=false;
+function showHint(){
+  recHint.classList.add('show');
+  clearTimeout(hintTimer);
+  if(!hintSticky) hintTimer=setTimeout(()=>recHint.classList.remove('show'),2600);
+}
+// in record mode the cursor fades when it stops moving, and comes back when it moves
+let curTimer;
+function armCursor(){
+  document.body.style.cursor='';
+  clearTimeout(curTimer);
+  if(document.body.classList.contains('rec'))
+    curTimer=setTimeout(()=>{ if(document.body.classList.contains('rec')) document.body.style.cursor='none'; },1600);
+}
+addEventListener('mousemove',armCursor);
+function cycleSpeed(){
+  const segs=[...$('speed').children];
+  const i=segs.findIndex(s=>s.classList.contains('on'));
+  segs[(i+1)%segs.length].click();
+}
+addEventListener('keydown',e=>{
+  if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;   // typing a seed is not a shortcut
+  switch(e.key.toLowerCase()){
+    case 'r': document.body.classList.toggle('rec'); armCursor(); showHint(); break;
+    case 'g': document.body.classList.toggle('graphon'); break;
+    case 'h': document.body.classList.toggle('nohud'); break;
+    case 'p': $('pause').click(); break;
+    case 's': cycleSpeed(); break;
+    case 'v':
+      if(mode==='single'){ if(!$('vs').disabled) $('vs').click(); }
+      else $('single').click();
+      break;
+    case '?': hintSticky=!hintSticky; showHint(); break;
+    default: return;
+  }
+});
+
+// URL flags, so an OBS browser source (2560x1440) can open the page already framed:
+//   file:///…/dino-evo.html#rec&stage=2&speed=3
+// rec · graph · stage=1-4 · speed=1|3|8|40 · seed=NAME
+function applyUrlFlags(){
+  const p=(location.hash+location.search).toLowerCase();
+  const seed=(location.hash+location.search).match(/seed=([\w-]+)/i);
+  if(seed){ $('seed').value=seed[1]; boot(); }
+  const sp=p.match(/speed=(\d+)/);
+  if(sp){ const seg=[...$('speed').children].find(s=>s.dataset.s===sp[1]); if(seg) seg.click(); }
+  if(/\bgraph\b/.test(p)) document.body.classList.add('graphon');
+  if(/\brec\b/.test(p)){ document.body.classList.add('rec'); armCursor(); }
+}
+
+boot();
+slotText();
+setStage(+((location.hash.match(/stage=(\d)/)||[])[1]) || 1);
+applyUrlFlags();
+tick();
+</script>
