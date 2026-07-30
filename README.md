@@ -2,7 +2,7 @@
 
 A neuroevolution sandbox where 200 dinosaurs learn to jump a cactus by dying repeatedly — and then get beaten by an obstacle so stupid that a five-year-old solves it in one second.
 
-**[▶ Watch the video](#)** · **[🎮 Try the simulation](#)**
+**[▶ Watch the video](https://youtu.be/dc-oYbgWEKY)** · **[🎮 Try the simulation](https://dino-evo.vercel.app)**
 
 > One HTML file. No dependencies, no build step, no framework. Open it and it runs.
 
